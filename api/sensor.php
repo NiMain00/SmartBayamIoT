@@ -32,33 +32,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     // Valve control
     if (isset($data['valve_status'])) {
-        $device_id = $data['device_id'] ?? 1;
-        $status = strtoupper($data['valve_status']);
-        $mode = $data['mode'] ?? 'manual';
+        $device_id = (int)($data['device_id'] ?? 1);
+        $status = strtoupper((string)($data['valve_status'] ?? 'OFF'));
+        $mode = (string)($data['mode'] ?? 'manual');
         $threshold = $data['threshold_moisture'] ?? null;
-        $reason = $data['reason'] ?? 'user';
 
-        if ($threshold !== null) {
-        // Skip UPDATE if valve_status table not exists - use existing valve_control/sensor_thresholds
-        // $stmt = $conn->prepare("UPDATE valve_status SET mode = ?, threshold_moisture = ? WHERE device_id = ?");
-        // $stmt->bind_param("sdi", $mode, $threshold, $device_id);
-        // $stmt->execute();
+        $reason = (string)($data['reason'] ?? 'user');
+        $triggered_by = (string)($data['triggered_by'] ?? 'manual');
+
+        try {
+            if ($threshold !== null) {
+                // Skipping update threshold here because original code comments indicate the table may differ.
+            }
+
+            $stmt = $conn->prepare(
+                "INSERT INTO valve_status (device_id, status, mode) VALUES (?, ?, ?) " .
+                "ON DUPLICATE KEY UPDATE status = ?, mode = ?, last_updated = CURRENT_TIMESTAMP"
+            );
+            if (!$stmt) {
+                throw new Exception("Prepare valve_status failed: " . $conn->error);
+            }
+            $stmt->bind_param("issss", $device_id, $status, $mode, $status, $mode);
+            if (!$stmt->execute()) {
+                throw new Exception("Execute valve_status failed: " . $stmt->error);
+            }
+            $stmt->close();
+
+            $stmt = $conn->prepare(
+                "INSERT INTO valve_logs (device_id, status, mode, triggered_by, reason) " .
+                "VALUES (?, ?, ?, ?, ?)"
+            );
+            if (!$stmt) {
+                throw new Exception("Prepare valve_logs failed: " . $conn->error);
+            }
+            $stmt->bind_param("issss", $device_id, $status, $mode, $triggered_by, $reason);
+            if (!$stmt->execute()) {
+                throw new Exception("Execute valve_logs failed: " . $stmt->error);
+            }
+            $stmt->close();
+
+            echo json_encode([
+                "status" => "success",
+                "message" => "Valve $status",
+                "data" => ["device_id" => $device_id]
+            ]);
+            exit();
+        } catch (Exception $e) {
+
+            http_response_code(500);
+            // tampilkan juga request body supaya gampang debug
+            echo json_encode([
+                "status" => "error",
+                "message" => $e->getMessage()
+            ]);
+            exit();
         }
 
-        
-        $stmt = $conn->prepare("INSERT INTO valve_status (device_id, status, mode) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE status = ?, mode = ?, last_updated = CURRENT_TIMESTAMP");
-        $stmt->bind_param("issss", $device_id, $status, $mode, $status, $mode);
-
-        $stmt->execute();
-        
-        $stmt = $conn->prepare("INSERT INTO valve_logs (device_id, status, mode, triggered_by, reason) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("iisss", $device_id, $status, $mode, $reason, $reason);
-        $stmt->execute();
-        
-        echo json_encode(["status" => "success", "message" => "Valve $status", "data" => ["device_id" => $device_id]]);
-        $stmt->close();
-        exit();
     }
+
+
     
     // Sensor data
     $stmt = $conn->prepare(

@@ -7,7 +7,7 @@ export const fetchSensorData = async (limit = 50, recent = true): Promise<Sensor
   if (recent) params.append('recent', 'true');
   const url = `${BASE_URL}/sensor.php?${params}`;
   const response = await fetch(url);
-  if (!response.ok) throw new Error('Failed to fetch sensor data');
+
   const result = await response.json();
   return (result.data || []).map((item: any) => ({
     ...item,
@@ -29,20 +29,20 @@ export const fetchSensorData = async (limit = 50, recent = true): Promise<Sensor
 
 export const fetchDevices = async () => {
   const response = await fetch(`${BASE_URL}/devices`);
-  if (!response.ok) throw new Error('Failed to fetch devices');
+
   return response.json();
 };
 
 export const fetchThresholds = async () => {
   const response = await fetch(`${BASE_URL}/thresholds`);
-  if (!response.ok) throw new Error('Failed to fetch thresholds');
+
   return response.json();
 };
 
 export const fetchValveStatus = async (deviceId = 1): Promise<ValveStatus> => {
   const url = `${BASE_URL}/sensor.php?valve-status&device_id=${deviceId}`;
   const response = await fetch(url);
-  if (!response.ok) throw new Error('Failed to fetch valve status');
+
   const result = await response.json();
   return {
     deviceId,
@@ -60,7 +60,7 @@ export const setValveThresholds = async (deviceId: number, low: number, high: nu
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  if (!response.ok) throw new Error('Failed to set thresholds');
+
   return response.json();
 };
 
@@ -73,7 +73,7 @@ export const toggleValve = async (deviceId: number, status: 'ON' | 'OFF', mode: 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  if (!response.ok) throw new Error('Failed to toggle valve');
+
   return response.json();
 };
 
@@ -85,7 +85,8 @@ export const setValveAutoThreshold = async (deviceId: number, threshold: number)
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  if (!response.ok) throw new Error('Failed to set auto threshold');
+
+
   return response.json();
 };
 

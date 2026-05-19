@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ValveStatus } from '../types';
-import { fetchValveStatus, toggleValve, setValveAutoThreshold } from '../api';
+import { fetchValveStatus, toggleValve } from '../api';
 import { Settings, Zap, Droplets, RotateCcw } from 'lucide-react';
 
 interface ValveControlProps {
@@ -9,10 +9,10 @@ interface ValveControlProps {
 }
 
 const ValveControl: React.FC<ValveControlProps> = ({ deviceId = 1, latestMoisture = 0 }) => {
-    const [isEditingThreshold, setIsEditingThreshold] = useState(false);
+
 const [valve, setValve] = useState<ValveStatus>({ deviceId, status: 'OFF' as 'ON' | 'OFF', mode: 'manual' as 'auto' | 'manual', thresholdMoisture: 30 });
   const [loading, setLoading] = useState(false);
-  const [threshold, setThreshold] = useState(30);
+
 
   useEffect(() => {
     loadValveStatus();
@@ -24,11 +24,6 @@ const [valve, setValve] = useState<ValveStatus>({ deviceId, status: 'OFF' as 'ON
   try {
     const status = await fetchValveStatus(deviceId!);
     setValve(status);
-
-    // 🔥 jangan override kalau user lagi geser
-    if (!isEditingThreshold) {
-      setThreshold(status.thresholdMoisture || 30);
-    }
   } catch (e) {
     console.error('Valve status error', e);
   }
@@ -37,10 +32,11 @@ const [valve, setValve] = useState<ValveStatus>({ deviceId, status: 'OFF' as 'ON
   const handleToggleManual = async (status: 'ON' | 'OFF') => {
     setLoading(true);
     try {
-        await toggleValve(deviceId!, status, 'manual');
-        await loadValveStatus();
+      await toggleValve(deviceId!, status, 'manual');
+      await loadValveStatus();
     } catch (e) {
-      alert('Error toggling valve');
+      console.error('Error toggling valve:', e);
+      // no popup: user-only error banner is handled globally in App
     }
     setLoading(false);
   };
@@ -59,28 +55,16 @@ const [valve, setValve] = useState<ValveStatus>({ deviceId, status: 'OFF' as 'ON
       await loadValveStatus();
     } catch (e) {
       console.error('Mode change error:', e);
-      alert('Error changing mode - check console');
+
     }
     setLoading(false);
   };
 
-  const handleThresholdChange = (value: number) => {
-  setThreshold(value);
-};
-
-const handleThresholdCommit = async () => {
-  if (valve.mode === 'auto') {
-    try {
-      await setValveAutoThreshold(deviceId!, threshold);
-      await loadValveStatus();
-    } catch (e) {
-      console.error('Threshold update error:', e);
-    }
-  }
-};
+  
 
 
-  const isAutoRecommended = latestMoisture < threshold;
+
+
 
   const CustomSwitch = ({ checked, onChange }: { checked: boolean; onChange: (val: boolean) => void }) => (
     <button
@@ -119,12 +103,7 @@ const handleThresholdCommit = async () => {
         </div>
         <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
           <span>Mode: <span className={`font-medium ${valve.mode === 'auto' ? 'text-blue-600' : 'text-gray-600'}`}>{valve.mode.toUpperCase()}</span></span>
-          {isAutoRecommended && valve.mode !== 'auto' && (
-            <div className="ml-auto flex items-center gap-1 bg-yellow-100 text-yellow-800 px-2 py-1 rounded-md text-xs">
-              <Zap className="w-3 h-3" />
-              Disarankan AUTO
-            </div>
-          )}
+          
         </div>
       </div>
 
@@ -150,7 +129,7 @@ const handleThresholdCommit = async () => {
         <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
           <div className="flex items-center gap-2 text-sm text-yellow-800">
             <Zap className="w-4 h-4" />
-            <span>⚠️ Mode AUTO aktif - Menggunakan tombol manual akan beralih ke mode MANUAL</span>
+            <span>Mode AUTO aktif - Menggunakan tombol manual akan beralih ke mode MANUAL</span>
           </div>
         </div>
       )}
@@ -171,42 +150,7 @@ const handleThresholdCommit = async () => {
           Tutup Katup
         </button>
       </div>
-
-      {/* Auto Threshold */}
-      {valve.mode === 'auto' && (
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-gray-700">Threshold (%)</span>
-            <span className="text-sm font-bold">{threshold}%</span>
-          </div>
-          <div className="relative h-2 bg-gray-200 rounded-full mb-3">
-            <div 
-              className="h-2 bg-gradient-to-r from-blue-500 to-emerald-500 rounded-full" 
-              style={{ width: `${Math.min(100, (threshold / 60) * 100)}%` }}
-            />
-          </div>
-          <div className="flex justify-between text-xs text-gray-500 mb-2">
-            <span>10%</span>
-            <span>60%</span>
-          </div>
-          <input
-  type="range"
-  min="10"
-  max="60"
-  step="1"
-  value={threshold}
-  onMouseDown={() => setIsEditingThreshold(true)}
-  onMouseUp={() => setIsEditingThreshold(false)}
-  onChange={(e) => handleThresholdChange(Number(e.target.value))}
-  disabled={loading}
-  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-/>
-
-          <p className="text-xs text-gray-500 mt-2 text-center">
-            Buka jika &lt; {threshold}% (Sekarang: {latestMoisture.toFixed(1)}%)
-          </p>
-        </div>
-      )}
+      
 
       {/* Actions */}
       <div className="flex gap-3 pt-4 border-t border-gray-100">
