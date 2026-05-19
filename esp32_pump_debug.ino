@@ -3,204 +3,345 @@
 #include <ArduinoJson.h>
 #include <DHT.h>
 
-// 🔧 WI-FI - UPDATE SESUAI JARINGAN ANDA
-const char* ssid = "HOGWARTS";
-const char* password = "karim1969";
+// WIFI
+const char* ssid = "ilmi";
+const char* password = "31102006";
 
-// 🔧 SERVER IP - GANTI DENGAN IP KOMPUTER XAMPP
-const char* serverUrl = "http://192.168.100.140/ZIP-kode-aplikasi-web/api/sensor.php";
-const char* valveStatusUrl = "http://192.168.100.140/ZIP-kode-aplikasi-web/api/sensor.php?valve-status&device_id=1";
+// SERVER
+const char* serverUrl =
+  "https://smartfarmbayam.my.id/api/sensor.php";
 
-// Pin
+const char* valveStatusUrl =
+  "https://smartfarmbayam.my.id/api/sensor.php?valve-status&device_id=1";
+
+// PIN
 #define SOIL_MOISTURE_PIN 34
-#define DHT_PIN 4
+#define DHT_PIN 5
 #define LDR_PIN 35
-#define RELAY_PIN 19
+#define PUMP_PIN 18
 
-#define DHT_TYPE DHT22 
+#define DHT_TYPE DHT22
+
 DHT dht(DHT_PIN, DHT_TYPE);
 
-// Globals
-String valveMode = "auto";
+// GLOBAL
+String valveMode = "manual";
 String valveStatus = "OFF";
-float valveThreshold = 30.0; // 🛡️ SAFE DEFAULT 30%
+float valveThreshold = 30.0;
+
 bool relayStateChanged = false;
-unsigned long lastDebug = 0;
+unsigned long lastManualChange = 0;
 
+float lastHum = 0;
+float lastTemp = 0;
+
+// ================= SETUP =================
 void setup() {
-  Serial.begin(115200);
-  delay(1000);
-  Serial.println("\n🚀 ESP32 Pump Controller Debug Mode");
-  
-  dht.begin();
-  pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, HIGH); // ❌ OFF paksa
-  Serial.println("🔌 Relay PIN 19: HIGH = OFF");
 
-  // WiFi
+  Serial.begin(115200);
+
+  delay(1000);
+
+  Serial.println("\n🚀 ESP32 Pump Controller");
+
+  dht.begin();
+
+  delay(2000);
+
+  pinMode(PUMP_PIN, OUTPUT);
+
+  digitalWrite(PUMP_PIN, LOW);
+
+  // WIFI
   WiFi.begin(ssid, password);
-  Serial.print("📶 WiFi");
+WiFi.setSleep(false);
+
+  Serial.print("📶 Connecting WiFi");
+
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
-  Serial.println("\n✅ WiFi OK: " + WiFi.localIP().toString());
-  
+
+  Serial.println("\n✅ WiFi Connected");
+
+  Serial.println(WiFi.localIP());
+
   updateValveStatus();
-  Serial.println("=== SETUP COMPLETE ===");
 }
 
-float readHumidity() { float h = dht.readHumidity(); return isnan(h) ? 0 : h; }
-float readTemperature() { float t = dht.readTemperature(); return isnan(t) ? 0 : t; }
-
-void debugLog(const char* msg) {
-  Serial.println("DEBUG: " + String(msg));
-}
-
+// ================= UPDATE STATUS =================
 void updateValveStatus() {
-  Serial.println("📡 Polling valve status...");
-  
-  if (WiFi.status() != WL_CONNECTED) {
-    debugLog("WiFi down - keep defaults");
+
+  if (millis() - lastManualChange < 3000) {
+    Serial.println("⏸️ Skip sync");
     return;
   }
-  
+
+  Serial.println("📡 Fetch valve status...");
+
+  if (WiFi.status() != WL_CONNECTED) return;
+
   HTTPClient http;
+
+  
   http.begin(valveStatusUrl);
-  int httpCode = http.GET();
-  
-  Serial.printf("HTTP %d: ", httpCode);
-  
-  if (httpCode == 200) {
+http.setTimeout(10000);
+
+  int code = http.GET();
+
+  if (code == 200) {
+
     String resp = http.getString();
-    Serial.println(resp.substring(0, 100) + "...");
-    
+
     StaticJsonDocument<300> doc;
-    DeserializationError err = deserializeJson(doc, resp);
-    
+
+    DeserializationError err =
+      deserializeJson(doc, resp);
+
     if (!err && doc["valve"]) {
+
       JsonObject v = doc["valve"];
-      String oldMode = valveMode;
+
       valveMode = v["mode"] | "manual";
+
       valveStatus = v["status"] | "OFF";
-      valveThreshold = v["threshold_moisture"] | 30.0;
-      
-      Serial.printf("✅ UPDATE: %s → %s | %s | %.1f%%\n", 
-        oldMode.c_str(), valveMode.c_str(), valveStatus.c_str(), valveThreshold);
-    } else {
-      Serial.println("❌ JSON parse fail");
+
+      valveThreshold =
+        v["threshold_moisture"] | 60.0;
+
+      Serial.printf(
+        "✅ Server: %s | %s | %.1f\n",
+        valveMode.c_str(),
+        valveStatus.c_str(),
+        valveThreshold
+      );
     }
+
   } else {
-    Serial.printf("❌ API ERROR %d\n", httpCode);
+
+    Serial.printf(
+      "❌ HTTP ERROR: %d\n",
+      code
+    );
   }
+
   http.end();
-  
-  // 🛡️ LOG DECISION STATE
-  Serial.printf("🎯 CONTROL STATE: mode=%s status=%s thresh=%.1f\n", 
-    valveMode.c_str(), valveStatus.c_str(), valveThreshold);
+yield();
 }
 
-bool controlPump(float soilMoisture, int soilRaw) {
+// ================= CONTROL PUMP =================
+bool controlPump(float soilMoisture) {
+
   bool newState;
-  
-  Serial.printf("🌱 Soil raw=%d mapped=%.1f%%\n", soilRaw, soilMoisture);
-  
+
   if (valveMode == "manual") {
+
     newState = (valveStatus == "ON");
+
     Serial.println("🔧 MANUAL mode");
+
   } else {
-    newState = (soilMoisture < valveThreshold);
-    Serial.printf("🤖 AUTO: soil %.1f < %.1f = %s\n", soilMoisture, valveThreshold, newState?"ON":"OFF");
+
+    newState =
+      (soilMoisture < valveThreshold);
+
+    Serial.printf(
+      "🤖 AUTO: %.1f < %.1f = %s\n",
+      soilMoisture,
+      valveThreshold,
+      newState ? "ON" : "OFF"
+    );
   }
-  
-  int targetPin = newState ? LOW : HIGH;  // LOW=ON relay
-  int currentPin = digitalRead(RELAY_PIN);
-  
-  Serial.printf("⚡ Relay: current=%d target=%d (%s)\n", currentPin, targetPin, newState?"ON":"OFF");
-  
-  if (currentPin != targetPin) {
-    digitalWrite(RELAY_PIN, targetPin);
+
+  int target = newState ? HIGH : LOW;
+
+  int current = digitalRead(PUMP_PIN);
+
+ if (current != target) {
+
+    // kalau mau nyala
+    if (target == HIGH) {
+
+        // pastikan benar-benar mati dulu
+        digitalWrite(PUMP_PIN, LOW);
+
+        Serial.println("⚡ Stabilizing power");
+
+        delay(1500);
+    }
+
+    // nyalakan / matikan
+    digitalWrite(PUMP_PIN, target);
+
+    delay(300);
+
+    valveStatus = newState ? "ON" : "OFF";
+
     relayStateChanged = true;
-    Serial.printf("💧 PUMP %s! (pin=%d)\n", newState ? "ON 🔥" : "OFF 🛑", targetPin);
+
+    lastManualChange = millis();
+
+    Serial.printf(
+      "💧 PUMP %s\n",
+      newState ? "ON 🔥" : "OFF 🛑"
+    );
+
     return true;
-  }
-  
-  Serial.println("⏸️ Pump state OK");
+}
+
   return false;
 }
 
+// ================= SEND VALVE =================
 void sendValveUpdate() {
+
   if (!relayStateChanged) return;
-  
-  Serial.println("📤 Sync valve state...");
-  
+
   HTTPClient http;
+
   http.begin(serverUrl);
-  http.addHeader("Content-Type", "application/json");
-  
+  http.setTimeout(10000);
+
+  http.addHeader(
+    "Content-Type",
+    "application/json"
+  );
+
   StaticJsonDocument<200> doc;
+
   doc["valve_status"] = valveStatus;
   doc["device_id"] = 1;
   doc["mode"] = valveMode;
-  doc["reason"] = "esp32_auto";
-  
+
   String json;
+
   serializeJson(doc, json);
-  
+
   int code = http.POST(json);
-  Serial.printf("HTTP POST valve: %d\n", code);
+
+  Serial.printf("📤 Sync: %d\n", code);
+
   http.end();
-  
+  yield();
+
   relayStateChanged = false;
 }
 
-void sendSensorData(float soilMoisture, float hum, float temp, float light) {
+// ================= SEND SENSOR =================
+void sendSensorData(
+  float soil,
+  float hum,
+  float temp,
+  float light
+) {
+
   HTTPClient http;
+
   http.begin(serverUrl);
-  http.addHeader("Content-Type", "application/json");
-  
+  http.setTimeout(10000);
+
+  http.addHeader(
+    "Content-Type",
+    "application/json"
+  );
+
   StaticJsonDocument<300> doc;
-  doc["kelembapan_tanah"] = soilMoisture;
+
+  doc["kelembapan_tanah"] = soil;
   doc["kelembapan_udara"] = hum;
   doc["suhu_udara"] = temp;
   doc["kecerahan"] = light;
-  
+
   String json;
+
   serializeJson(doc, json);
-  
+
+  Serial.println("📤 JSON:");
+  Serial.println(json);
+
   int code = http.POST(json);
-  Serial.printf("📊 Sensor POST: %d\n", code);
-  http.end();
+
+Serial.printf("📊 Sensor: %d\n", code);
+
+if (code > 0) {
+
+    String response = http.getString();
+
+    Serial.println("📥 RESPONSE:");
+    Serial.println(response);
+
+} else {
+
+    Serial.println("❌ Failed POST");
 }
 
+http.end();
+
+yield();
+}
+
+// ================= LOOP =================
 void loop() {
-  if (!WiFi.status() == WL_CONNECTED) {
-    Serial.println("❌ WiFi down - reconnect");
+
+  if (WiFi.status() != WL_CONNECTED) {
+
     WiFi.reconnect();
+
     delay(5000);
+
     return;
   }
-  
-  // === CYCLE ===
+
   updateValveStatus();
-  
-  // Sensors
-  int soilRaw = analogRead(SOIL_MOISTURE_PIN);
-  float soil = map(soilRaw, 4095, 0, 0, 100);
-  float hum = readHumidity();
-  float temp = readTemperature();
-  float light = map(analogRead(LDR_PIN), 4095, 0, 0, 1000);
-  
-  Serial.printf("=== CYCLE SoilRaw=%d Soil%%=%.1f ===\n", soilRaw, soil);
-  
-  // Pump control
-  bool changed = controlPump(soil, soilRaw);
-  
-  // Send data
-  sendSensorData(soil, hum, temp, light);
-  
-  if (changed) sendValveUpdate();
-  
-  Serial.println("⏳ 10s wait...\n");
-  delay(10000);
+
+  int soilRaw =
+    analogRead(SOIL_MOISTURE_PIN);
+
+float soil =
+  ((4095.0 - soilRaw) / 4095.0) * 100.0;
+
+soil = constrain(soil, 0, 100);
+
+  float hum = dht.readHumidity();
+float temp = dht.readTemperature();
+
+  // jika DHT rusak
+  if (isnan(hum) || isnan(temp)) {
+
+    Serial.println("❌ DHT22 ERROR");
+
+    hum = lastHum;
+temp = lastTemp;
+  }
+
+  float light =
+    map(
+      analogRead(LDR_PIN),
+      4095,
+      0,
+      0,
+      1000
+    );
+
+  Serial.printf(
+    "🌱 Soil: %.1f%%\n",
+    soil
+  );
+
+  bool changed =
+    controlPump(soil);
+
+  sendSensorData(
+    soil,
+    hum,
+    temp,
+    light
+  );
+
+  if (changed) {
+    sendValveUpdate();
+  }
+
+  delay(15000);
 }

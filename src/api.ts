@@ -1,6 +1,6 @@
 import { SensorData, ValveStatus } from './types';
 
-const BASE_URL = `${window.location.protocol}//${window.location.hostname}:8001/api`;
+const BASE_URL = `${window.location.origin}/api`;
 
 export const fetchSensorData = async (limit = 50, recent = true): Promise<SensorData[]> => {
   const params = new URLSearchParams({ limit: limit.toString() });
