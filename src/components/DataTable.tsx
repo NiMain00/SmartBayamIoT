@@ -99,7 +99,7 @@ const DataTable = ({ data }: DataTableProps) => {
       <div className="p-6 border-b border-gray-100">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h3 className="text-lg font-semibold text-gray-800">📋 Data Sensor</h3>
+            <h3 className="text-lg font-semibold text-gray-800">Data Sensor</h3>
             <p className="text-sm text-gray-500 mt-1">Total: {filteredData.length} data ditemukan</p>
           </div>
           <div className="flex items-center gap-3">

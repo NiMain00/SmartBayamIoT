@@ -81,8 +81,6 @@ function App() {
     { id: 'dashboard' as TabType, label: 'Dashboard', icon: LayoutDashboard },
     { id: 'valve' as TabType, label: 'Kontrol Katup', icon: Droplets },
     { id: 'data' as TabType, label: 'Data Sensor', icon: Table2 },
-    { id: 'api' as TabType, label: 'API & Kode', icon: Server },
-    { id: 'database' as TabType, label: 'Database', icon: Database },
   ];
 
   return (
@@ -108,7 +106,7 @@ function App() {
                 <Leaf className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-gray-800">Smart Farm Bayam</h1>
+                <h1 className="text-sl font-bold text-gray-800">Smart Farm Bayam</h1>
                 <p className="text-xs text-gray-500">IoT Monitoring</p>
               </div>
             </div>
@@ -250,7 +248,7 @@ function App() {
                   <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
 
                     <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-gray-800">📋 Data Terbaru</h3>
+                      <h3 className="text-lg font-semibold text-gray-800">Data Terbaru</h3>
                       <button
                         onClick={() => setActiveTab('data')}
                         className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
