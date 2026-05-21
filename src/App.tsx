@@ -309,7 +309,7 @@ function App() {
         {/* Footer */}
         <footer className="px-6 py-4 border-t border-gray-200 bg-white">
           <div className="flex flex-col sm:flex-row items-center justify-between text-sm text-gray-500">
-            <p>© 2025 Smart Farming IoT - ESP32 Monitoring System</p>
+            <p>© 2026 Smart Farm Bayam - ESP32 Monitoring System</p>
             <p className="flex items-center gap-1 mt-1 sm:mt-0">
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
               System Operational

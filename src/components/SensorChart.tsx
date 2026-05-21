@@ -1,6 +1,4 @@
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -9,6 +7,8 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  LineChart,
+  Line,
 } from 'recharts';
 import { SensorData } from '../types';
 
@@ -17,19 +17,23 @@ interface SensorChartProps {
 }
 
 const SensorChart = ({ data }: SensorChartProps) => {
-  const chartData = data.slice(-24).map((item) => ({
-    waktu: item.waktu.substring(11, 16),
-    kelembapanTanah: item.kelembapanTanah,
-    kelembapanUdara: item.kelembapanUdara,
-    suhuUdara: item.suhuUdara,
-    kecerahan: item.kecerahan / 10,
-  }));
+  const chartData = [...data]
+    .sort((a, b) => a.id - b.id) 
+    .slice(-24)                  
+    .map((item) => ({
+      id: item.id, 
+      waktu: item.waktu.substring(11, 16),
+      kelembapanTanah: item.kelembapanTanah,
+      kelembapanUdara: item.kelembapanUdara,
+      suhuUdara: item.suhuUdara,
+      kecerahan: item.kecerahan / 10,
+    }));
 
   return (
     <div className="space-y-6">
       {/* Kelembapan Chart */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">📊 Grafik Kelembapan (%)</h3>
+        <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Grafik Kelembapan (%)</h3>
         <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={chartData}>
             <defs>
@@ -43,9 +47,23 @@ const SensorChart = ({ data }: SensorChartProps) => {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="waktu" angle={-45} textAnchor="end" interval={0} tick={{ fontSize: 10 }} stroke="#9ca3af" />
+            
+            <XAxis 
+              dataKey="id" 
+              tickFormatter={(id) => {
+                const item = chartData.find(d => d.id === id);
+                return item ? item.waktu : '';
+              }}
+              angle={-45} 
+              textAnchor="end" 
+              interval={0} 
+              tick={{ fontSize: 10 }} 
+              stroke="#9ca3af" 
+            />
             <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" domain={[0, 100]} />
+            
             <Tooltip
+              shared={false}
               contentStyle={{
                 borderRadius: '12px',
                 border: '1px solid #e5e7eb',
@@ -77,13 +95,27 @@ const SensorChart = ({ data }: SensorChartProps) => {
 
       {/* Suhu & Kecerahan Chart */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">🌡️ Grafik Suhu (°C) & Kecerahan (Lux/10)</h3>
+        <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Grafik Suhu (°C) & Kecerahan (Lux/10)</h3>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="waktu" angle={-45} textAnchor="end" interval={0} tick={{ fontSize: 10 }} stroke="#9ca3af" />
+            
+            <XAxis 
+              dataKey="id" 
+              tickFormatter={(id) => {
+                const item = chartData.find(d => d.id === id);
+                return item ? item.waktu : '';
+              }}
+              angle={-45} 
+              textAnchor="end" 
+              interval={0} 
+              tick={{ fontSize: 10 }} 
+              stroke="#9ca3af" 
+            />
             <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" />
+            
             <Tooltip
+              shared={false}
               contentStyle={{
                 borderRadius: '12px',
                 border: '1px solid #e5e7eb',
